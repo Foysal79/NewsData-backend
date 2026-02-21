@@ -6,11 +6,11 @@ dotenv.config({
 });
 
 export default {
-  NODE_ENV: process.env.NODE_ENV,
-  PORT: process.env.PORT,
-  DATABASE_URL: process.env.DATABASE_URL,
-  BCRYPT_SALT_ROUNDS: process.env.BCRYPT_SALT_ROUNDS,
-  DEFAULT_PASS: process.env.DEFAULT_PASS,
-  JWT_SECRET: process.env.JWT_SECRET,
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN,
+  port: Number(process.env.PORT || 5000),
+  mongoUrl: process.env.MONGO_URL as string,
+  newsApiKey: process.env.NEWSDATA_API_KEY as string,
+  newsBaseUrl:
+    process.env.NEWSDATA_BASE_URL || "https://newsdata.io/api/1/latest",
+  cronSchedule: process.env.CRON_SCHEDULE || "0 */6 * * *",
+  defaultPageSize: Number(process.env.DEFAULT_PAGE_SIZE || 20),
 };
