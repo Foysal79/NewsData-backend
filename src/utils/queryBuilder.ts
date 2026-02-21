@@ -7,16 +7,15 @@ export type NewsQueryParams = {
 
   author?: string;
   language?: string;
-  country?: string; // can be single or comma-separated
-  category?: string; // comma-separated
+  country?: string;   // single or comma-separated
+  category?: string;  // comma-separated
   datatype?: string;
 
   q?: string;
 };
 
-const clean = (v?: string) => (v ?? "").trim().toLowerCase();
-const cleanList = (v?: string) =>
-  clean(v)
+const splitList = (v?: string) =>
+  (v ?? "")
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean);
@@ -35,45 +34,52 @@ export function buildNewsFilter(qp: NewsQueryParams) {
     }
   }
 
-  // language (stored lowercase)
-  if (qp.language) filter.language = clean(qp.language);
+  //  language (case-insensitive exact)
+  if (qp.language) {
+    filter.language = new RegExp(`^${escapeRegex(qp.language.trim())}$`, "i");
+  }
 
-  // datatype (stored lowercase)
-  if (qp.datatype) filter.datatype = clean(qp.datatype);
+  //  datatype (case-insensitive exact)
+  if (qp.datatype) {
+    filter.datatype = new RegExp(`^${escapeRegex(qp.datatype.trim())}$`, "i");
+  }
 
-  // country: stored as array lowercase => match any selected country
+  //  country (array-safe): match ANY selected country (case-insensitive)
   if (qp.country) {
-    const countries = cleanList(qp.country);
+    const countries = splitList(qp.country).map(
+      (c) => new RegExp(`^${escapeRegex(c)}$`, "i")
+    );
     if (countries.length) filter.country = { $in: countries };
   }
 
-  //  category: OR match (any selected). (If you want AND, tell me)
+  //  category (array-safe): match ANY selected category (case-insensitive)
   if (qp.category) {
-    const cats = cleanList(qp.category);
+    const cats = splitList(qp.category).map(
+      (c) => new RegExp(`^${escapeRegex(c)}$`, "i")
+    );
     if (cats.length) filter.category = { $in: cats };
   }
 
-  // author: creator array match OR fallback source_name match
+  //  author (creator array) — robust match
+  // NOTE: many articles have creator null/[] so author filter can return 0 (that's real data)
   if (qp.author) {
-    const a = clean(qp.author);
-    // creator is array lowercase -> match element
+    const r = new RegExp(escapeRegex(qp.author.trim()), "i");
     filter.$or = [
-      { creator: a },
-      { source_name: new RegExp(escapeRegex(qp.author.trim()), "i") },
+      { creator: r },         // creator array element match
+      { source_name: r },     // fallback match
     ];
   }
 
-  // optional full text search
+  // optional search
   if (qp.q) {
     const r = new RegExp(escapeRegex(qp.q.trim()), "i");
-    const prevOr = filter.$or ? filter.$or : null;
-
     const searchOr = [{ title: r }, { description: r }, { content: r }];
 
-    // if author already created $or, we AND them by nesting:
-    if (prevOr) {
+    // if author already made $or -> AND them properly
+    if (filter.$or) {
+      const authorOr = filter.$or;
       delete filter.$or;
-      filter.$and = [{ $or: prevOr }, { $or: searchOr }];
+      filter.$and = [{ $or: authorOr }, { $or: searchOr }];
     } else {
       filter.$or = searchOr;
     }
